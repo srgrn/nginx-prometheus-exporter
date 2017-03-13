@@ -1,10 +1,12 @@
-counter http_requests_total by vhost, method, code, content_type
-counter http_request_duration_milliseconds_sum by vhost, method, code, content_type
-counter http_response_size_bytes_sum by vhost, method, code, content_type
+counter http_requests_total by vhost, upstream, method, code, content_type
+counter http_request_upstream_duration_milliseconds_sum by vhost, upstream, method, code, content_type
+counter http_request_duration_milliseconds_sum by vhost, upstream, method, code, content_type
+counter http_response_size_bytes_sum by vhost, upstream, method, code, content_type
 
-# log_format mtail '$server_name $remote_addr - $remote_user [$time_local] '
-#                  '"$request" $status $bytes_sent $request_time'
-#                  '"$http_referer" "$http_user_agent" "$content_type"';
+#    log_format  main  '$server_name $remote_addr - $remote_user [$time_local] "$request" '
+#                      '$status $body_bytes_sent "$http_referer" '
+#                      '"$http_user_agent" "$http_x_forwarded_for" '
+#                      '$upstream_addr $upstream_response_time $request_time' ;
 
 /^/ +
 /(?P<vhost>[0-9A-Za-z\.\-:]+) / +
@@ -15,12 +17,18 @@ counter http_response_size_bytes_sum by vhost, method, code, content_type
 /"(?P<request_method>[A-Z]+) (?P<request_uri>\S+) (?P<http_version>HTTP\/[0-9\.]+)" / +
 /(?P<status>\d{3}) / +
 /(?P<bytes_sent>\d+) / +
-/(?P<request_seconds>\d+)\.(?P<request_milliseconds>\d+) / +
 /"(?P<http_referer>\S+)" / +
 /"(?P<http_user_agent>[[:print:]]+)" / +
+/"(?P<http_x_forwarded_for>[[:print:]]+)" / +
+/(?P<upstream_addr>[0-9A-Za-z\-]+) / +
+/(?P<upstream_response_seconds>\d+)\.(?P<upstream_response_milliseconds>\d+) / +
+/(?P<request_seconds>\d+)\.(?P<request_milliseconds>\d+) / +
+
+
 /"(?P<content_type>[^;\\]+)(;.*)?"/ +
 /$/ {
   http_requests_total[$vhost][tolower($request_method)][$status][$content_type]++
-  http_request_duration_milliseconds_sum[$vhost][tolower($request_method)][$status][$content_type] += $request_seconds * 1000 + $request_milliseconds
-  http_response_size_bytes_sum[$vhost][tolower($request_method)][$status][$content_type] += $bytes_sent
+  http_request_duration_milliseconds_sum[$vhost][$upstream_addr][tolower($request_method)][$status][$content_type] += $request_seconds * 1000 + $request_milliseconds
+  http_request_upstream_duration_milliseconds_sum[$vhost][$upstream_addr][tolower($request_method)][$status][$content_type] += $upstream_response_seconds * 1000 + $upstream_response_milliseconds
+  http_response_size_bytes_sum[$vhost][$upstream_addr][tolower($request_method)][$status][$content_type] += $bytes_sent
 }
